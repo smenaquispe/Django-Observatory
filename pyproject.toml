@@ -20,5 +20,14 @@ include = ["django_observatory*"]
 
 [dependency-groups]
 dev = [
-    "pytest",
+    "pytest>=8.0.0",
+    "pytest-django>=4.5.0",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "testproject.settings"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+testpaths = ["tests"]
