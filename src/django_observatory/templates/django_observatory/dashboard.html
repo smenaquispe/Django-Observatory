@@ -65,15 +65,203 @@
         }
         .content h2 {
             color: #2c3e50;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
         .content p {
             color: #666;
             line-height: 1.6;
         }
+        
+        /* Request Cards Styles */
+        .requests-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .request-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            border-left-width: 4px;
+        }
+        .request-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        /* Status-based colors */
+        .request-card.status-pending {
+            border-left-color: #95a5a6;
+            background-color: #f8f9fa;
+        }
+        .request-card.status-2xx {
+            border-left-color: #27ae60;
+            background-color: #f0fdf4;
+        }
+        .request-card.status-3xx {
+            border-left-color: #3498db;
+            background-color: #eff6ff;
+        }
+        .request-card.status-4xx {
+            border-left-color: #f39c12;
+            background-color: #fffbeb;
+        }
+        .request-card.status-5xx {
+            border-left-color: #e74c3c;
+            background-color: #fef2f2;
+        }
+        
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .request-method {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            margin-right: 12px;
+        }
+        .method-GET { background-color: #3498db; color: white; }
+        .method-POST { background-color: #27ae60; color: white; }
+        .method-PUT { background-color: #f39c12; color: white; }
+        .method-DELETE { background-color: #e74c3c; color: white; }
+        .method-PATCH { background-color: #9b59b6; color: white; }
+        
+        .request-path {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        .request-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-code {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .status-code.status-2xx { background-color: #27ae60; color: white; }
+        .status-code.status-3xx { background-color: #3498db; color: white; }
+        .status-code.status-4xx { background-color: #f39c12; color: white; }
+        .status-code.status-5xx { background-color: #e74c3c; color: white; }
+        .status-code.status-pending {
+            background-color: #95a5a6;
+            color: white;
+        }
+        
+        .request-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #666;
+        }
+        .request-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .processing-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #95a5a6;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #95a5a6;
+        }
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* Notification Banner */
+        .new-requests-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #3498db;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .new-requests-notification.show {
+            display: flex;
+        }
+        
+        .new-requests-notification:hover {
+            background-color: #2980b9;
+            transform: scale(1.05);
+            transition: all 0.2s ease;
+        }
+        
+        .notification-icon {
+            font-size: 24px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+        
+        .notification-text {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Notification Banner -->
+    <div class="new-requests-notification" id="newRequestsNotification">
+        <span class="notification-icon">🔔</span>
+        <span class="notification-text" id="notificationText">0 new requests</span>
+    </div>
+    
     <div class="container">
         <div class="header">
             <h1>🔭 Django Observatory</h1>
@@ -94,7 +282,48 @@
         <div class="content">
             {% if active_tab == 'requests' %}
                 <h2>📨 Requests Monitor</h2>
-                <p>View and monitor HTTP requests to your Django application.</p>
+                
+                <div id="requestsList" class="requests-list">
+                    {% if requests %}
+                        {% for req in requests %}
+                            <div class="request-card status-{{ req.get_status_category }}" data-request-id="{{ req.id }}">
+                                <div class="request-header">
+                                    <div style="display: flex; align-items: center; flex: 1;">
+                                        <span class="request-method method-{{ req.method }}">{{ req.method }}</span>
+                                        <span class="request-path">{{ req.path }}</span>
+                                    </div>
+                                    <div class="request-status">
+                                        {% if req.status == 'pending' %}
+                                            <span class="status-code status-pending">
+                                                <span class="processing-indicator"></span>
+                                                Processing
+                                            </span>
+                                        {% else %}
+                                            <span class="status-code status-{{ req.get_status_category }}">
+                                                {{ req.status_code }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="request-meta">
+                                    <span>⏱️ {{ req.timestamp|date:"H:i:s" }}</span>
+                                    {% if req.duration %}
+                                        <span>⚡ {{ req.duration|floatformat:2 }}ms</span>
+                                    {% endif %}
+                                    {% if req.query_params %}
+                                        <span>🔍 ?{{ req.query_params }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No requests captured yet. Make some requests to see them here!</p>
+                        </div>
+                    {% endif %}
+                </div>
+                
             {% elif active_tab == 'logs' %}
                 <h2>📝 Application Logs</h2>
                 <p>View application logs and debugging information.</p>
@@ -104,5 +333,104 @@
             {% endif %}
         </div>
     </div>
+    
+    {% if active_tab == 'requests' %}
+    <script>
+        // Real-time request monitoring
+        let lastRequestId = {{ requests.0.id|default:0 }};
+        let newRequestsCount = 0;
+        let newRequestsData = [];
+        
+        // Poll for new requests every 3 seconds
+        function checkForNewRequests() {
+            fetch(`/observatory/api/requests/?since_id=${lastRequestId}&limit=50`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.count > 0) {
+                        newRequestsCount = data.count;
+                        newRequestsData = data.requests;
+                        showNotification(newRequestsCount);
+                    }
+                })
+                .catch(error => console.error('Error fetching new requests:', error));
+        }
+        
+        // Show notification banner
+        function showNotification(count) {
+            const notification = document.getElementById('newRequestsNotification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notificationText.textContent = `${count} new request${count !== 1 ? 's' : ''}`;
+            notification.classList.add('show');
+        }
+        
+        // Hide notification and load new requests
+        function loadNewRequests() {
+            const requestsList = document.getElementById('requestsList');
+            const emptyState = requestsList.querySelector('.empty-state');
+            
+            // Remove empty state if it exists
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            // Add new requests to the top
+            newRequestsData.reverse().forEach(req => {
+                const card = createRequestCard(req);
+                requestsList.insertAdjacentHTML('afterbegin', card);
+                
+                // Update lastRequestId
+                if (req.id > lastRequestId) {
+                    lastRequestId = req.id;
+                }
+            });
+            
+            // Hide notification
+            const notification = document.getElementById('newRequestsNotification');
+            notification.classList.remove('show');
+            
+            // Reset counter
+            newRequestsCount = 0;
+            newRequestsData = [];
+        }
+        
+        // Create HTML for a request card
+        function createRequestCard(req) {
+            const timestamp = new Date(req.timestamp);
+            const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
+            const durationStr = req.duration ? `⚡ ${parseFloat(req.duration).toFixed(2)}ms` : '';
+            const queryStr = req.query_params ? `🔍 ?${req.query_params}` : '';
+            
+            const statusText = req.status === 'pending' ? 
+                '<span class="status-code status-pending"><span class="processing-indicator"></span>Processing</span>' :
+                `<span class="status-code status-${req.status_category}">${req.status_code}</span>`;
+            
+            return `
+                <div class="request-card status-${req.status_category}" data-request-id="${req.id}">
+                    <div class="request-header">
+                        <div style="display: flex; align-items: center; flex: 1;">
+                            <span class="request-method method-${req.method}">${req.method}</span>
+                            <span class="request-path">${req.path}</span>
+                        </div>
+                        <div class="request-status">
+                            ${statusText}
+                        </div>
+                    </div>
+                    <div class="request-meta">
+                        <span>⏱️ ${timeStr}</span>
+                        ${durationStr ? `<span>${durationStr}</span>` : ''}
+                        ${queryStr ? `<span>${queryStr}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Click notification to load new requests
+        document.getElementById('newRequestsNotification').addEventListener('click', loadNewRequests);
+        
+        // Start polling
+        setInterval(checkForNewRequests, 3000);
+    </script>
+    {% endif %}
 </body>
 </html>

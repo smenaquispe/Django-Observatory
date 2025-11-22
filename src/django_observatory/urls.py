@@ -6,4 +6,5 @@ app_name = 'django_observatory'
 
 urlpatterns = [
     path('', views.dashboard_view, name='dashboard'),
+    path('api/requests/', views.api_requests_list, name='api_requests'),
 ]
