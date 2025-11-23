@@ -79,6 +79,11 @@
             gap: 12px;
             margin-top: 20px;
         }
+        .request-card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
         .request-card {
             border: 1px solid #e0e0e0;
             border-radius: 8px;
@@ -286,35 +291,37 @@
                 <div id="requestsList" class="requests-list">
                     {% if requests %}
                         {% for req in requests %}
-                            <div class="request-card status-{{ req.get_status_category }}" data-request-id="{{ req.id }}">
-                                <div class="request-header">
-                                    <div style="display: flex; align-items: center; flex: 1;">
-                                        <span class="request-method method-{{ req.method }}">{{ req.method }}</span>
-                                        <span class="request-path">{{ req.path }}</span>
+                            <a href="/observatory/request/{{ req.id }}/" class="request-card-link">
+                                <div class="request-card status-{{ req.get_status_category }}" data-request-id="{{ req.id }}">
+                                    <div class="request-header">
+                                        <div style="display: flex; align-items: center; flex: 1;">
+                                            <span class="request-method method-{{ req.method }}">{{ req.method }}</span>
+                                            <span class="request-path">{{ req.path }}</span>
+                                        </div>
+                                        <div class="request-status">
+                                            {% if req.status == 'pending' %}
+                                                <span class="status-code status-pending">
+                                                    <span class="processing-indicator"></span>
+                                                    Processing
+                                                </span>
+                                            {% else %}
+                                                <span class="status-code status-{{ req.get_status_category }}">
+                                                    {{ req.status_code }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                    <div class="request-status">
-                                        {% if req.status == 'pending' %}
-                                            <span class="status-code status-pending">
-                                                <span class="processing-indicator"></span>
-                                                Processing
-                                            </span>
-                                        {% else %}
-                                            <span class="status-code status-{{ req.get_status_category }}">
-                                                {{ req.status_code }}
-                                            </span>
+                                    <div class="request-meta">
+                                        <span>⏱️ {{ req.timestamp|date:"H:i:s" }}</span>
+                                        {% if req.duration %}
+                                            <span>⚡ {{ req.duration|floatformat:2 }}ms</span>
+                                        {% endif %}
+                                        {% if req.query_params %}
+                                            <span>🔍 ?{{ req.query_params }}</span>
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="request-meta">
-                                    <span>⏱️ {{ req.timestamp|date:"H:i:s" }}</span>
-                                    {% if req.duration %}
-                                        <span>⚡ {{ req.duration|floatformat:2 }}ms</span>
-                                    {% endif %}
-                                    {% if req.query_params %}
-                                        <span>🔍 ?{{ req.query_params }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
+                            </a>
                         {% endfor %}
                     {% else %}
                         <div class="empty-state">

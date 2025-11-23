@@ -18,9 +18,16 @@ class Request(models.Model):
     method = models.CharField(max_length=10)  # GET, POST, PUT, DELETE, etc.
     path = models.CharField(max_length=2048)
     query_params = models.TextField(blank=True, null=True)
+    request_headers = models.TextField(blank=True, null=True, help_text="JSON string of request headers")
+    request_body = models.TextField(blank=True, null=True, help_text="Request payload")
     
     # Response information
     status_code = models.IntegerField(null=True, blank=True)
+    response_headers = models.TextField(blank=True, null=True, help_text="JSON string of response headers")
+    response_body = models.TextField(blank=True, null=True, help_text="Response content")
+    
+    # Django view information
+    view_name = models.CharField(max_length=255, blank=True, null=True, help_text="Django view name/path")
     
     # Timing
     timestamp = models.DateTimeField(default=timezone.now)

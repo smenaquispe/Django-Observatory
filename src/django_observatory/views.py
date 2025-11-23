@@ -1,8 +1,9 @@
 """Views for Django Observatory dashboard"""
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from .models import Request
+import json
 
 
 def dashboard_view(request):
@@ -21,6 +22,57 @@ def dashboard_view(request):
         context['requests'] = Request.objects.all()[:50]  # Last 50 requests
     
     return render(request, 'django_observatory/dashboard.html', context)
+
+
+def request_detail_view(request, request_id):
+    """
+    Detailed view of a single HTTP request showing complete
+    request/response information.
+    """
+    req = get_object_or_404(Request, id=request_id)
+    
+    # Parse JSON data for better display
+    request_headers = {}
+    response_headers = {}
+    request_body_parsed = None
+    response_body_parsed = None
+    
+    # Parse headers
+    try:
+        if req.request_headers:
+            request_headers = json.loads(req.request_headers)
+    except:
+        pass
+    
+    try:
+        if req.response_headers:
+            response_headers = json.loads(req.response_headers)
+    except:
+        pass
+    
+    # Try to parse request body as JSON
+    if req.request_body:
+        try:
+            request_body_parsed = json.loads(req.request_body)
+        except:
+            request_body_parsed = req.request_body
+    
+    # Try to parse response body as JSON
+    if req.response_body:
+        try:
+            response_body_parsed = json.loads(req.response_body)
+        except:
+            response_body_parsed = req.response_body
+    
+    context = {
+        'req': req,
+        'request_headers': request_headers,
+        'response_headers': response_headers,
+        'request_body_parsed': request_body_parsed,
+        'response_body_parsed': response_body_parsed,
+    }
+    
+    return render(request, 'django_observatory/request_detail.html', context)
 
 
 @require_GET

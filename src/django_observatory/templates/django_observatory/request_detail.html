@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Details - Django Observatory</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .back-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background-color: #34495e;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .back-link:hover {
+            background-color: #3498db;
+        }
+        .request-overview {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .request-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .method-badge {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            color: white;
+        }
+        .method-GET { background-color: #3498db; }
+        .method-POST { background-color: #27ae60; }
+        .method-PUT { background-color: #f39c12; }
+        .method-DELETE { background-color: #e74c3c; }
+        .method-PATCH { background-color: #9b59b6; }
+        .request-path {
+            font-size: 20px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #2c3e50;
+            flex: 1;
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 16px;
+            color: white;
+        }
+        .status-2xx { background-color: #27ae60; }
+        .status-3xx { background-color: #3498db; }
+        .status-4xx { background-color: #f39c12; }
+        .status-5xx { background-color: #e74c3c; }
+        .meta-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+        }
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .meta-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .meta-value {
+            font-size: 14px;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 968px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .detail-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .json-view {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .headers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .header-item {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .header-key {
+            color: #e74c3c;
+            font-weight: 600;
+            min-width: 150px;
+        }
+        .header-value {
+            color: #2c3e50;
+            word-break: break-all;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #95a5a6;
+            font-style: italic;
+        }
+        .view-info {
+            background-color: #ecf0f1;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔭 Request Details</h1>
+            <a href="/observatory/?tab=requests" class="back-link">← Back to Dashboard</a>
+        </div>
+        
+        <!-- Request Overview -->
+        <div class="request-overview">
+            <div class="request-title">
+                <span class="method-badge method-{{ req.method }}">{{ req.method }}</span>
+                <span class="request-path">{{ req.path }}</span>
+                {% if req.status_code %}
+                    <span class="status-badge status-{{ req.get_status_category }}">{{ req.status_code }}</span>
+                {% endif %}
+            </div>
+            
+            <div class="meta-info">
+                <div class="meta-item">
+                    <span class="meta-label">Timestamp</span>
+                    <span class="meta-value">{{ req.timestamp|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                {% if req.duration %}
+                <div class="meta-item">
+                    <span class="meta-label">Duration</span>
+                    <span class="meta-value">{{ req.duration|floatformat:2 }}ms</span>
+                </div>
+                {% endif %}
+                {% if req.query_params %}
+                <div class="meta-item">
+                    <span class="meta-label">Query Parameters</span>
+                    <span class="meta-value">?{{ req.query_params }}</span>
+                </div>
+                {% endif %}
+                {% if req.view_name %}
+                <div class="meta-item" style="grid-column: 1 / -1;">
+                    <span class="meta-label">Django View/Controller</span>
+                    <div class="view-info">{{ req.view_name }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Request & Response Details -->
+        <div class="details-grid">
+            <!-- Request Details -->
+            <div class="detail-section">
+                <h2 class="section-title">📥 Request</h2>
+                
+                {% if request_headers %}
+                <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px; margin-top: 20px;">Headers</h3>
+                <div class="headers-list">
+                    {% for key, value in request_headers.items %}
+                        <div class="header-item">
+                            <span class="header-key">{{ key }}:</span>
+                            <span class="header-value">{{ value }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if request_body_parsed %}
+                <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px; margin-top: 20px;">Body / Payload</h3>
+                <div class="code-block">
+                    <pre class="json-view">{{ request_body_parsed|safe }}</pre>
+                </div>
+                {% elif not request_headers %}
+                <div class="empty-state">No request data available</div>
+                {% endif %}
+            </div>
+            
+            <!-- Response Details -->
+            <div class="detail-section">
+                <h2 class="section-title">📤 Response</h2>
+                
+                {% if response_headers %}
+                <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px; margin-top: 20px;">Headers</h3>
+                <div class="headers-list">
+                    {% for key, value in response_headers.items %}
+                        <div class="header-item">
+                            <span class="header-key">{{ key }}:</span>
+                            <span class="header-value">{{ value }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if response_body_parsed %}
+                <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px; margin-top: 20px;">Body</h3>
+                <div class="code-block">
+                    <pre class="json-view">{{ response_body_parsed|safe }}</pre>
+                </div>
+                {% elif not response_headers %}
+                <div class="empty-state">No response data available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Pretty print JSON if it's a string
+        document.querySelectorAll('.json-view').forEach(el => {
+            try {
+                const content = el.textContent.trim();
+                const parsed = JSON.parse(content);
+                el.textContent = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Not JSON or already formatted, keep as is
+            }
+        });
+    </script>
+</body>
+</html>
