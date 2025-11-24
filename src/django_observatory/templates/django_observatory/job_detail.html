@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Details - Django Observatory</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .back-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background-color: #34495e;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .back-link:hover {
+            background-color: #3498db;
+        }
+        .job-overview {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .job-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .job-name {
+            font-size: 24px;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #2c3e50;
+            flex: 1;
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            color: white;
+        }
+        .status-badge.status-pending {
+            background-color: #95a5a6;
+        }
+        .status-badge.status-running {
+            background-color: #3498db;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .status-badge.status-completed {
+            background-color: #27ae60;
+        }
+        .status-badge.status-failed {
+            background-color: #e74c3c;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .meta-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+        }
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .meta-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .meta-value {
+            font-size: 14px;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 968px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .detail-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .json-view {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #95a5a6;
+            font-style: italic;
+        }
+        .error-message {
+            background-color: #fee;
+            border-left: 4px solid #e74c3c;
+            padding: 16px;
+            border-radius: 4px;
+            color: #721c24;
+            margin-top: 16px;
+        }
+        .source-info {
+            background-color: #ecf0f1;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #2c3e50;
+            margin-top: 16px;
+        }
+        .full-width-section {
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Job Details</h1>
+            <a href="/observatory/?tab=jobs" class="back-link">← Back to Jobs</a>
+        </div>
+        
+        <!-- Job Overview -->
+        <div class="job-overview">
+            <div class="job-title">
+                <span class="job-name">{{ job.name }}</span>
+                <span class="status-badge status-{{ job.status }}">{{ job.status|upper }}</span>
+            </div>
+            
+            <div class="meta-info">
+                <div class="meta-item">
+                    <span class="meta-label">Created At</span>
+                    <span class="meta-value">{{ job.created_at|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                {% if job.started_at %}
+                <div class="meta-item">
+                    <span class="meta-label">Started At</span>
+                    <span class="meta-value">{{ job.started_at|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                {% endif %}
+                {% if job.completed_at %}
+                <div class="meta-item">
+                    <span class="meta-label">Completed At</span>
+                    <span class="meta-value">{{ job.completed_at|date:"Y-m-d H:i:s" }}</span>
+                </div>
+                {% endif %}
+                {% if job.get_duration %}
+                <div class="meta-item">
+                    <span class="meta-label">Duration</span>
+                    <span class="meta-value">{{ job.get_duration|floatformat:2 }} seconds</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if source_info %}
+            <div class="source-info">
+                📁 Source: {{ source_info }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Job Details -->
+        <div class="details-grid">
+            <!-- Result / Output -->
+            {% if result_parsed or job.error_message %}
+            <div class="detail-section {% if job.error_message and not result_parsed %}full-width-section{% endif %}">
+                <h2 class="section-title">📤 {% if job.status == 'failed' %}Error{% else %}Result{% endif %}</h2>
+                
+                {% if job.error_message %}
+                <div class="error-message">
+                    <strong>❌ Error Message:</strong><br>
+                    {{ job.error_message }}
+                </div>
+                {% endif %}
+                
+                {% if result_parsed %}
+                <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px; margin-top: 20px;">Output Data</h3>
+                <div class="code-block">
+                    <pre class="json-view">{{ result_parsed|safe }}</pre>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="detail-section full-width-section">
+                <h2 class="section-title">📤 Result</h2>
+                <div class="empty-state">
+                    {% if job.status == 'pending' %}
+                        ⏳ Job hasn't started yet
+                    {% elif job.status == 'running' %}
+                        🔄 Job is currently running...
+                    {% else %}
+                        No result data available
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        // Pretty print JSON if it's a string
+        document.querySelectorAll('.json-view').forEach(el => {
+            try {
+                const content = el.textContent.trim();
+                const parsed = JSON.parse(content);
+                el.textContent = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Not JSON or already formatted, keep as is
+            }
+        });
+        
+        // Auto-refresh for running jobs
+        {% if job.status == 'running' or job.status == 'pending' %}
+        setInterval(() => {
+            location.reload();
+        }, 3000); // Refresh every 3 seconds for running jobs
+        {% endif %}
+    </script>
+</body>
+</html>

@@ -28,6 +28,42 @@ def dashboard_view(request):
     return render(request, 'django_observatory/dashboard.html', context)
 
 
+def job_detail_view(request, job_id):
+    """
+    Detailed view of a single background job showing complete
+    job information including result data and source.
+    """
+    job = get_object_or_404(Job, id=job_id)
+    
+    # Try to parse result as JSON for better display
+    result_parsed = None
+    source_info = None
+    
+    if job.result:
+        try:
+            result_data = json.loads(job.result)
+            result_parsed = json.dumps(result_data, indent=2)
+            
+            # Extract source information if available
+            if isinstance(result_data, dict):
+                if 'source' in result_data:
+                    source_info = result_data['source']
+                elif 'source_file' in result_data:
+                    source_info = result_data['source_file']
+                elif 'module' in result_data:
+                    source_info = result_data['module']
+        except (json.JSONDecodeError, TypeError):
+            # If not JSON, display as plain text
+            result_parsed = job.result
+    
+    context = {
+        'job': job,
+        'result_parsed': result_parsed,
+        'source_info': source_info,
+    }
+    
+    return render(request, 'django_observatory/job_detail.html', context)
+
 def request_detail_view(request, request_id):
     """
     Detailed view of a single HTTP request showing complete

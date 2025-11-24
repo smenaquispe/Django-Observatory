@@ -581,31 +581,33 @@
                 
                 <div class="requests-list" id="jobsList">
                     {% for job in jobs %}
-                        <div class="job-card status-{{ job.status }}" data-job-id="{{ job.id }}">
-                            <div class="request-header">
-                                <span class="job-name">{{ job.name }}</span>
-                                <div class="request-status">
-                                    <span class="status-badge status-{{ job.status }}">{{ job.status|upper }}</span>
+                        <a href="/observatory/job/{{ job.id }}/" class="request-card-link">
+                            <div class="job-card status-{{ job.status }}" data-job-id="{{ job.id }}">
+                                <div class="request-header">
+                                    <span class="job-name">{{ job.name }}</span>
+                                    <div class="request-status">
+                                        <span class="status-badge status-{{ job.status }}">{{ job.status|upper }}</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="request-meta">
-                                <span>🕐 Created: {{ job.created_at|date:"Y-m-d H:i:s" }}</span>
-                                {% if job.started_at %}
-                                    <span>▶️ Started: {{ job.started_at|date:"H:i:s" }}</span>
-                                {% endif %}
-                                {% if job.completed_at %}
-                                    <span>✅ Completed: {{ job.completed_at|date:"H:i:s" }}</span>
-                                {% endif %}
-                                {% if job.get_duration %}
-                                    <span>⏱️ Duration: {{ job.get_duration|floatformat:2 }}s</span>
-                                {% endif %}
-                            </div>
-                            {% if job.error_message %}
-                                <div class="job-error">
-                                    ❌ Error: {{ job.error_message }}
+                                <div class="request-meta">
+                                    <span>🕐 Created: {{ job.created_at|date:"Y-m-d H:i:s" }}</span>
+                                    {% if job.started_at %}
+                                        <span>▶️ Started: {{ job.started_at|date:"H:i:s" }}</span>
+                                    {% endif %}
+                                    {% if job.completed_at %}
+                                        <span>✅ Completed: {{ job.completed_at|date:"H:i:s" }}</span>
+                                    {% endif %}
+                                    {% if job.get_duration %}
+                                        <span>⏱️ Duration: {{ job.get_duration|floatformat:2 }}s</span>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
-                        </div>
+                                {% if job.error_message %}
+                                    <div class="job-error">
+                                        ❌ Error: {{ job.error_message }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </a>
                     {% empty %}
                         <div class="empty-state">
                             <div class="empty-state-icon">⚙️</div>
