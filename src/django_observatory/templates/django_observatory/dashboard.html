@@ -258,6 +258,140 @@
                 transform: translateY(-5px);
             }
         }
+        
+        /* Filter Controls */
+        .filters-container {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .filters-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .filter-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #2c3e50;
+        }
+        
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .filter-select:hover {
+            border-color: #3498db;
+        }
+        
+        .filter-select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+        
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 250px;
+            transition: border-color 0.2s;
+        }
+        
+        .filter-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+        
+        .filter-input::placeholder {
+            color: #95a5a6;
+        }
+        
+        /* Active Filter Tags */
+        .active-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-height: 32px;
+        }
+        
+        .filter-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .filter-tag.exclude {
+            background-color: #e74c3c;
+        }
+        
+        .filter-tag-remove {
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0 4px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        
+        .filter-tag-remove:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .clear-all-filters {
+            padding: 6px 12px;
+            background-color: #95a5a6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .clear-all-filters:hover {
+            background-color: #7f8c8d;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
     </style>
 </head>
 <body>
@@ -287,6 +421,49 @@
         <div class="content">
             {% if active_tab == 'requests' %}
                 <h2>📨 Requests Monitor</h2>
+                
+                <!-- Filters Section -->
+                <div class="filters-container">
+                    <div class="filters-row">
+                        <div class="filter-group">
+                            <label class="filter-label">Method:</label>
+                            <select id="methodFilter" class="filter-select">
+                                <option value="">All Methods</option>
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="PATCH">PATCH</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">Search:</label>
+                            <input 
+                                type="text" 
+                                id="searchFilter" 
+                                class="filter-input" 
+                                placeholder="Filter by path or view name (press Enter)"
+                            />
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">Exclude:</label>
+                            <input 
+                                type="text" 
+                                id="excludeFilter" 
+                                class="filter-input" 
+                                placeholder="Exclude paths (press Enter)"
+                            />
+                        </div>
+                    </div>
+                    
+                    <!-- Active Filters Tags -->
+                    <div class="filters-row">
+                        <div id="activeFilters" class="active-filters"></div>
+                        <button id="clearAllFilters" class="clear-all-filters hidden">Clear All</button>
+                    </div>
+                </div>
                 
                 <div id="requestsList" class="requests-list">
                     {% if requests %}
@@ -347,6 +524,171 @@
         let lastRequestId = {{ requests.0.id|default:0 }};
         let newRequestsCount = 0;
         let newRequestsData = [];
+        
+        // Filter state
+        let filters = {
+            method: '',
+            search: [],
+            exclude: []
+        };
+        
+        // Initialize filters on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFilters();
+            applyFilters();
+        });
+        
+        // Initialize filter event listeners
+        function initializeFilters() {
+            // Method filter
+            document.getElementById('methodFilter').addEventListener('change', function(e) {
+                filters.method = e.target.value;
+                updateActiveFilterTags();
+                applyFilters();
+            });
+            
+            // Search filter
+            document.getElementById('searchFilter').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    const searchTerm = e.target.value.trim();
+                    if (!filters.search.includes(searchTerm)) {
+                        filters.search.push(searchTerm);
+                        updateActiveFilterTags();
+                        applyFilters();
+                    }
+                    e.target.value = '';
+                }
+            });
+            
+            // Exclude filter
+            document.getElementById('excludeFilter').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.target.value.trim()) {
+                    const excludeTerm = e.target.value.trim();
+                    if (!filters.exclude.includes(excludeTerm)) {
+                        filters.exclude.push(excludeTerm);
+                        updateActiveFilterTags();
+                        applyFilters();
+                    }
+                    e.target.value = '';
+                }
+            });
+            
+            // Clear all filters
+            document.getElementById('clearAllFilters').addEventListener('click', function() {
+                filters = { method: '', search: [], exclude: [] };
+                document.getElementById('methodFilter').value = '';
+                document.getElementById('searchFilter').value = '';
+                document.getElementById('excludeFilter').value = '';
+                updateActiveFilterTags();
+                applyFilters();
+            });
+        }
+        
+        // Update active filter tags display
+        function updateActiveFilterTags() {
+            const container = document.getElementById('activeFilters');
+            const clearBtn = document.getElementById('clearAllFilters');
+            container.innerHTML = '';
+            
+            let hasFilters = false;
+            
+            // Method filter tag
+            if (filters.method) {
+                hasFilters = true;
+                const tag = createFilterTag(`Method: ${filters.method}`, 'method');
+                container.appendChild(tag);
+            }
+            
+            // Search filter tags
+            filters.search.forEach(term => {
+                hasFilters = true;
+                const tag = createFilterTag(`Search: ${term}`, 'search', term);
+                container.appendChild(tag);
+            });
+            
+            // Exclude filter tags
+            filters.exclude.forEach(term => {
+                hasFilters = true;
+                const tag = createFilterTag(`Exclude: ${term}`, 'exclude', term);
+                tag.classList.add('exclude');
+                container.appendChild(tag);
+            });
+            
+            // Show/hide clear all button
+            clearBtn.classList.toggle('hidden', !hasFilters);
+        }
+        
+        // Create a filter tag element
+        function createFilterTag(text, type, value = null) {
+            const tag = document.createElement('div');
+            tag.className = 'filter-tag';
+            tag.innerHTML = `
+                <span>${text}</span>
+                <span class="filter-tag-remove">×</span>
+            `;
+            
+            tag.querySelector('.filter-tag-remove').addEventListener('click', function() {
+                removeFilter(type, value);
+            });
+            
+            return tag;
+        }
+        
+        // Remove a specific filter
+        function removeFilter(type, value) {
+            if (type === 'method') {
+                filters.method = '';
+                document.getElementById('methodFilter').value = '';
+            } else if (type === 'search') {
+                filters.search = filters.search.filter(t => t !== value);
+            } else if (type === 'exclude') {
+                filters.exclude = filters.exclude.filter(t => t !== value);
+            }
+            
+            updateActiveFilterTags();
+            applyFilters();
+        }
+        
+        // Apply filters to request cards
+        function applyFilters() {
+            const cards = document.querySelectorAll('.request-card-link');
+            
+            cards.forEach(cardLink => {
+                const card = cardLink.querySelector('.request-card');
+                const method = card.querySelector('.request-method').textContent.trim();
+                const path = card.querySelector('.request-path').textContent.trim();
+                
+                let show = true;
+                
+                // Method filter
+                if (filters.method && method !== filters.method) {
+                    show = false;
+                }
+                
+                // Search filters (AND logic - must match all search terms)
+                if (filters.search.length > 0) {
+                    const matchesAll = filters.search.every(term => 
+                        path.toLowerCase().includes(term.toLowerCase())
+                    );
+                    if (!matchesAll) {
+                        show = false;
+                    }
+                }
+                
+                // Exclude filters (hide if matches any exclude term)
+                if (filters.exclude.length > 0) {
+                    const matchesAny = filters.exclude.some(term => 
+                        path.toLowerCase().includes(term.toLowerCase())
+                    );
+                    if (matchesAny) {
+                        show = false;
+                    }
+                }
+                
+                // Show or hide the card
+                cardLink.classList.toggle('hidden', !show);
+            });
+        }
         
         // Poll for new requests and update existing ones every 3 seconds
         function checkForNewRequests() {
@@ -457,6 +799,9 @@
                     lastRequestId = req.id;
                 }
             });
+            
+            // Apply filters to new cards
+            applyFilters();
             
             // Hide notification
             const notification = document.getElementById('newRequestsNotification');

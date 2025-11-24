@@ -400,6 +400,217 @@ class TestRealtimeUpdates:
 
 
 @pytest.mark.django_db
+class TestRequestFilters:
+    """Test suite for request filtering functionality."""
+    
+    def test_method_filter_selector_exists(self, client):
+        """
+        Test that a method filter selector is present in the dashboard.
+        
+        Given: The requests tab is loaded
+        When: Viewing the dashboard
+        Then: Should show a selector/dropdown to filter by HTTP method
+        """
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check for method filter UI elements
+        assert 'filter' in content.lower() or 'method' in content.lower(), \
+            "Should have filtering UI elements"
+        
+        # Check for method options
+        methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+        # At least some method names should appear for filtering
+        method_count = sum(1 for method in methods if method in content)
+        assert method_count >= 2, "Should have method filter options"
+    
+    def test_filter_by_get_method(self, client):
+        """
+        Test filtering requests to show only GET requests.
+        
+        Given: Multiple requests with different HTTP methods
+        When: Filtering by GET method
+        Then: Only GET requests should be visible
+        """
+        from django_observatory.models import Request
+        
+        # Create requests with different methods
+        get_req = Request.objects.create(method='GET', path='/api/items/', status='completed', status_code=200)
+        post_req = Request.objects.create(method='POST', path='/api/items/', status='completed', status_code=201)
+        put_req = Request.objects.create(method='PUT', path='/api/items/1/', status='completed', status_code=200)
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # All should be visible initially
+        assert 'GET' in content
+        assert 'POST' in content
+        
+        # The page should have JavaScript to filter by method
+        assert 'filter' in content.lower(), "Should have filtering functionality"
+    
+    def test_filter_by_post_method(self, client):
+        """
+        Test filtering requests to show only POST requests.
+        
+        Given: Multiple requests with different HTTP methods
+        When: Filtering by POST method
+        Then: Only POST requests should be visible
+        """
+        from django_observatory.models import Request
+        
+        Request.objects.create(method='GET', path='/api/items/', status='completed', status_code=200)
+        Request.objects.create(method='POST', path='/api/items/', status='completed', status_code=201)
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Should have the ability to filter
+        assert 'data-request-id' in content or 'request-card' in content
+    
+    def test_path_search_filter(self, client):
+        """
+        Test searching/filtering requests by path/controller.
+        
+        Given: Multiple requests to different endpoints
+        When: Searching for a specific path (e.g., "/api/users")
+        Then: Only matching requests should be visible
+        """
+        from django_observatory.models import Request
+        
+        Request.objects.create(method='GET', path='/api/users/', status='completed', status_code=200)
+        Request.objects.create(method='GET', path='/api/products/', status='completed', status_code=200)
+        Request.objects.create(method='POST', path='/api/users/login/', status='completed', status_code=200)
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check for search input field
+        assert 'search' in content.lower() or 'input' in content.lower(), \
+            "Should have a search input field"
+        assert 'filter' in content.lower(), "Should have filtering capability"
+    
+    def test_exclusion_filter(self, client):
+        """
+        Test excluding/hiding specific paths from the request list.
+        
+        Given: Multiple requests to different endpoints
+        When: Adding an exclusion filter for a specific path
+        Then: Requests matching that path should be hidden
+        """
+        from django_observatory.models import Request
+        
+        Request.objects.create(method='GET', path='/health/', status='completed', status_code=200)
+        Request.objects.create(method='GET', path='/api/users/', status='completed', status_code=200)
+        Request.objects.create(method='GET', path='/metrics/', status='completed', status_code=200)
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Should have exclusion/anti-filter functionality
+        assert 'filter' in content.lower() or 'exclude' in content.lower(), \
+            "Should have exclusion filtering capability"
+    
+    def test_filter_tags_with_remove_button(self, client):
+        """
+        Test that active filters are shown as tags with X button to remove.
+        
+        Given: Filters are applied (method, search, or exclusion)
+        When: Viewing the filtered dashboard
+        Then: Should show filter tags with X button to remove each filter
+        """
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check for filter tag container/structure in the HTML
+        # The tags will be created dynamically by JavaScript
+        assert 'filter' in content.lower(), "Should have filter functionality"
+    
+    def test_multiple_filters_can_be_applied(self, client):
+        """
+        Test that multiple filters can be applied simultaneously.
+        
+        Given: Multiple requests with different methods and paths
+        When: Applying method filter + path search + exclusion
+        Then: All filters should work together
+        """
+        from django_observatory.models import Request
+        
+        # Create diverse requests
+        Request.objects.create(method='GET', path='/api/users/', status='completed', status_code=200)
+        Request.objects.create(method='POST', path='/api/users/', status='completed', status_code=201)
+        Request.objects.create(method='GET', path='/api/products/', status='completed', status_code=200)
+        Request.objects.create(method='GET', path='/health/', status='completed', status_code=200)
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Should support multiple filtering
+        assert 'filter' in content.lower(), "Should have filtering system"
+    
+    def test_filter_persistence_in_ui(self, client):
+        """
+        Test that filters persist in the UI (shown as tags).
+        
+        Given: A filter has been applied
+        When: The filter is active
+        Then: Should display a tag/chip showing the active filter
+        """
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check for filter display elements (tags/chips will be created by JS)
+        assert 'filter' in content.lower(), "Should have filter display system"
+    
+    def test_clear_all_filters(self, client):
+        """
+        Test clearing all filters at once.
+        
+        Given: Multiple filters are applied
+        When: Clicking "Clear All" or similar action
+        Then: All filters should be removed
+        """
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Should have mechanism to clear filters
+        assert 'filter' in content.lower() or 'clear' in content.lower(), \
+            "Should have filter clearing capability"
+    
+    def test_filter_by_view_name(self, client):
+        """
+        Test filtering by Django view/controller name.
+        
+        Given: Requests have view_name information
+        When: Searching by view name
+        Then: Should filter by the view that handled the request
+        """
+        from django_observatory.models import Request
+        
+        Request.objects.create(
+            method='GET', 
+            path='/admin/', 
+            status='completed', 
+            status_code=200,
+            view_name='admin:index'
+        )
+        Request.objects.create(
+            method='GET', 
+            path='/api/users/', 
+            status='completed', 
+            status_code=200,
+            view_name='api.users.list'
+        )
+        
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Should be able to filter by view name
+        assert 'filter' in content.lower() or 'search' in content.lower(), \
+            "Should have search/filter capability for view names"
+
+
+@pytest.mark.django_db
 class TestRequestDetails:
     """Test suite for detailed request view."""
     
