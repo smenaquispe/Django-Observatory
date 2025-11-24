@@ -201,6 +201,71 @@
             margin-bottom: 16px;
         }
         
+        /* Job Cards Styles */
+        .job-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            border-left-width: 4px;
+            background-color: white;
+        }
+        .job-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .job-card.status-pending {
+            border-left-color: #95a5a6;
+            background-color: #f8f9fa;
+        }
+        .job-card.status-running {
+            border-left-color: #3498db;
+            background-color: #eff6ff;
+        }
+        .job-card.status-completed {
+            border-left-color: #27ae60;
+            background-color: #f0fdf4;
+        }
+        .job-card.status-failed {
+            border-left-color: #e74c3c;
+            background-color: #fef2f2;
+        }
+        .job-name {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            color: white;
+        }
+        .status-badge.status-pending {
+            background-color: #95a5a6;
+        }
+        .status-badge.status-running {
+            background-color: #3498db;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .status-badge.status-completed {
+            background-color: #27ae60;
+        }
+        .status-badge.status-failed {
+            background-color: #e74c3c;
+        }
+        .job-error {
+            margin-top: 12px;
+            padding: 8px 12px;
+            background-color: #fee;
+            border-left: 3px solid #e74c3c;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #721c24;
+        }
+        
         /* Notification Banner */
         .new-requests-notification {
             position: fixed;
@@ -513,7 +578,41 @@
                 <p>View application logs and debugging information.</p>
             {% elif active_tab == 'jobs' %}
                 <h2>⚙️ Background Jobs</h2>
-                <p>Monitor and manage background tasks and jobs.</p>
+                
+                <div class="requests-list" id="jobsList">
+                    {% for job in jobs %}
+                        <div class="job-card status-{{ job.status }}" data-job-id="{{ job.id }}">
+                            <div class="request-header">
+                                <span class="job-name">{{ job.name }}</span>
+                                <div class="request-status">
+                                    <span class="status-badge status-{{ job.status }}">{{ job.status|upper }}</span>
+                                </div>
+                            </div>
+                            <div class="request-meta">
+                                <span>🕐 Created: {{ job.created_at|date:"Y-m-d H:i:s" }}</span>
+                                {% if job.started_at %}
+                                    <span>▶️ Started: {{ job.started_at|date:"H:i:s" }}</span>
+                                {% endif %}
+                                {% if job.completed_at %}
+                                    <span>✅ Completed: {{ job.completed_at|date:"H:i:s" }}</span>
+                                {% endif %}
+                                {% if job.get_duration %}
+                                    <span>⏱️ Duration: {{ job.get_duration|floatformat:2 }}s</span>
+                                {% endif %}
+                            </div>
+                            {% if job.error_message %}
+                                <div class="job-error">
+                                    ❌ Error: {{ job.error_message }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚙️</div>
+                            <p>No background jobs yet</p>
+                        </div>
+                    {% endfor %}
+                </div>
             {% endif %}
         </div>
     </div>
@@ -860,6 +959,73 @@
         
         // Start polling to update existing requests (especially pending ones)
         setInterval(updateExistingRequests, 2000);
+    </script>
+    {% elif active_tab == 'jobs' %}
+    <script>
+        // Real-time jobs monitoring
+        function formatDuration(seconds) {
+            if (!seconds) return '';
+            if (seconds < 60) return `${seconds.toFixed(2)}s`;
+            const minutes = Math.floor(seconds / 60);
+            const secs = (seconds % 60).toFixed(0);
+            return `${minutes}m ${secs}s`;
+        }
+        
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+        
+        function updateJobsList() {
+            fetch('/observatory/api/jobs/')
+                .then(response => response.json())
+                .then(data => {
+                    const jobsList = document.getElementById('jobsList');
+                    
+                    data.jobs.forEach(job => {
+                        const existingCard = document.querySelector(`[data-job-id="${job.id}"]`);
+                        
+                        if (existingCard) {
+                            // Update existing job card
+                            const statusBadge = existingCard.querySelector('.status-badge');
+                            statusBadge.textContent = job.status.toUpperCase();
+                            statusBadge.className = `status-badge status-${job.status}`;
+                            
+                            existingCard.className = `job-card status-${job.status}`;
+                            
+                            // Update meta information
+                            const metaDiv = existingCard.querySelector('.request-meta');
+                            let metaHTML = `<span>🕐 Created: ${new Date(job.created_at).toLocaleString()}</span>`;
+                            
+                            if (job.started_at) {
+                                metaHTML += `<span>▶️ Started: ${formatTime(job.started_at)}</span>`;
+                            }
+                            if (job.completed_at) {
+                                metaHTML += `<span>✅ Completed: ${formatTime(job.completed_at)}</span>`;
+                            }
+                            if (job.duration) {
+                                metaHTML += `<span>⏱️ Duration: ${formatDuration(job.duration)}</span>`;
+                            }
+                            
+                            metaDiv.innerHTML = metaHTML;
+                            
+                            // Update error message if present
+                            const existingError = existingCard.querySelector('.job-error');
+                            if (job.error_message && !existingError) {
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'job-error';
+                                errorDiv.textContent = `❌ Error: ${job.error_message}`;
+                                existingCard.appendChild(errorDiv);
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error updating jobs:', error));
+        }
+        
+        // Update jobs every 2 seconds
+        setInterval(updateJobsList, 2000);
     </script>
     {% endif %}
 </body>

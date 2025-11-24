@@ -4,8 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.test import Client as TestClient
-from .models import Request
-import json
+from .models import Request, Job
 import json
 
 
@@ -23,6 +22,8 @@ def dashboard_view(request):
     # If viewing requests tab, fetch recent requests
     if active_tab == 'requests':
         context['requests'] = Request.objects.all()[:50]  # Last 50 requests
+    elif active_tab == 'jobs':
+        context['jobs'] = Job.objects.all()[:50]  # Last 50 jobs
     
     return render(request, 'django_observatory/dashboard.html', context)
 
@@ -193,3 +194,30 @@ def api_reprocess_request(request, request_id):
         return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_GET
+def api_jobs_list(request):
+    """
+    API endpoint that returns jobs in JSON format for real-time updates.
+    """
+    jobs_list = Job.objects.all()[:100]
+    
+    data = {
+        'jobs': [
+            {
+                'id': job.id,
+                'name': job.name,
+                'status': job.status,
+                'created_at': job.created_at.isoformat(),
+                'started_at': job.started_at.isoformat() if job.started_at else None,
+                'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+                'duration': job.get_duration(),
+                'error_message': job.error_message,
+            }
+            for job in jobs_list
+        ]
+    }
+    
+    return JsonResponse(data)
+
