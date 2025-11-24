@@ -89,6 +89,128 @@ class TestRequestMonitoring:
         assert 'status-pending' in content or 'processing' in content.lower(), \
             "Template should support showing pending/processing request states"
     
+    def test_post_requests_are_clickable(self, client):
+        """
+        Test that POST requests (and any non-GET methods) are clickable to view details.
+        
+        This addresses a bug where dynamically added request cards don't have
+        clickable links to their detail pages.
+        
+        Given: A POST request has been captured
+        When: Viewing the requests tab
+        Then: The request card should be clickable with a link to the detail page
+        """
+        from django_observatory.models import Request
+        
+        # Create a POST request in the database
+        post_request = Request.objects.create(
+            method='POST',
+            path='/api/blog/posts/',
+            status_code=201,
+            status='completed',
+            request_body='{"title": "Test Post", "content": "Test content"}',
+            response_body='{"id": 1, "title": "Test Post"}'
+        )
+        
+        # Get the dashboard
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Verify the POST request is displayed
+        assert 'POST' in content, "POST method should be visible"
+        assert '/api/blog/posts/' in content, "POST request path should be visible"
+        
+        # Verify there's a link to the detail page
+        detail_url = f'/observatory/request/{post_request.id}/'
+        assert detail_url in content, f"Detail link {detail_url} should be present in the HTML"
+        
+        # Verify we can actually access the detail page
+        detail_response = client.get(detail_url)
+        assert detail_response.status_code == 200, "Detail page should be accessible"
+        
+        detail_content = detail_response.content.decode('utf-8')
+        assert 'Test Post' in detail_content, "Detail page should show request content"
+    
+    def test_dynamically_added_requests_are_clickable(self, client):
+        """
+        Test that requests added dynamically via JavaScript have clickable links.
+        
+        This is a regression test for the bug where createRequestCard() function
+        in JavaScript doesn't wrap cards in <a> tags.
+        
+        Given: The dashboard HTML is loaded
+        When: Examining the JavaScript createRequestCard function
+        Then: The function should generate cards wrapped in clickable links
+        """
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check that the JavaScript includes the necessary link structure
+        # The createRequestCard function should include an <a> tag wrapper
+        assert 'createRequestCard' in content, "createRequestCard function should exist"
+        
+        # CRITICAL: Check if the createRequestCard function returns HTML with <a> tags
+        # The bug is that it only returns a div without wrapping it in an <a> tag
+        # We need to check if the JavaScript template string includes the link wrapper
+        import re
+        
+        # Extract the createRequestCard function
+        match = re.search(r'function createRequestCard\(req\)\s*\{(.*?)\n\s*\}', content, re.DOTALL)
+        assert match, "createRequestCard function should be found"
+        
+        function_body = match.group(1)
+        
+        # The function should create an <a> tag with href to the request detail
+        # Check if the function includes <a href= in its return statement
+        assert '<a ' in function_body and 'href=' in function_body, \
+            "BUG FOUND: createRequestCard function doesn't wrap cards in <a> tags! " \
+            "It only creates div elements without clickable links."
+    
+    def test_all_http_methods_are_clickable(self, client):
+        """
+        Test that ALL HTTP methods (GET, POST, PUT, DELETE, PATCH) have clickable cards.
+        
+        This comprehensive test ensures that no matter what HTTP method is used,
+        the request card will be clickable to view details.
+        
+        Given: Requests with different HTTP methods
+        When: Viewing the requests tab
+        Then: All request cards should have clickable links
+        """
+        from django_observatory.models import Request
+        
+        # Create requests with different HTTP methods
+        methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+        created_requests = []
+        
+        for method in methods:
+            req = Request.objects.create(
+                method=method,
+                path=f'/api/test/{method.lower()}/',
+                status_code=200 if method == 'GET' else 201 if method == 'POST' else 200,
+                status='completed'
+            )
+            created_requests.append(req)
+        
+        # Get the dashboard
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Verify all requests are displayed and have clickable links
+        for req in created_requests:
+            assert req.method in content, f"{req.method} method should be visible"
+            assert req.path in content, f"{req.method} path should be visible"
+            
+            # Verify the detail link exists
+            detail_url = f'/observatory/request/{req.id}/'
+            assert detail_url in content, \
+                f"Detail link for {req.method} request should be present: {detail_url}"
+            
+            # Verify we can access the detail page
+            detail_response = client.get(detail_url)
+            assert detail_response.status_code == 200, \
+                f"Detail page for {req.method} request should be accessible"
+    
     def test_request_cards_display_essential_information(self, client):
         """
         Test that request cards display essential information.

@@ -413,22 +413,24 @@
                 `<span class="status-code status-${req.status_category}">${req.status_code}</span>`;
             
             return `
-                <div class="request-card status-${req.status_category}" data-request-id="${req.id}">
-                    <div class="request-header">
-                        <div style="display: flex; align-items: center; flex: 1;">
-                            <span class="request-method method-${req.method}">${req.method}</span>
-                            <span class="request-path">${req.path}</span>
+                <a href="/observatory/request/${req.id}/" class="request-card-link">
+                    <div class="request-card status-${req.status_category}" data-request-id="${req.id}">
+                        <div class="request-header">
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <span class="request-method method-${req.method}">${req.method}</span>
+                                <span class="request-path">${req.path}</span>
+                            </div>
+                            <div class="request-status">
+                                ${statusText}
+                            </div>
                         </div>
-                        <div class="request-status">
-                            ${statusText}
+                        <div class="request-meta">
+                            <span>⏱️ ${timeStr}</span>
+                            ${durationStr ? `<span>${durationStr}</span>` : ''}
+                            ${queryStr ? `<span>${queryStr}</span>` : ''}
                         </div>
                     </div>
-                    <div class="request-meta">
-                        <span>⏱️ ${timeStr}</span>
-                        ${durationStr ? `<span>${durationStr}</span>` : ''}
-                        ${queryStr ? `<span>${queryStr}</span>` : ''}
-                    </div>
-                </div>
+                </a>
             `;
         }
         
