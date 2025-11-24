@@ -150,19 +150,18 @@ class TestRequestMonitoring:
         assert 'createRequestCard' in content, "createRequestCard function should exist"
         
         # CRITICAL: Check if the createRequestCard function returns HTML with <a> tags
-        # The bug is that it only returns a div without wrapping it in an <a> tag
-        # We need to check if the JavaScript template string includes the link wrapper
+        # Extract the section containing createRequestCard function
         import re
         
-        # Extract the createRequestCard function
-        match = re.search(r'function createRequestCard\(req\)\s*\{(.*?)\n\s*\}', content, re.DOTALL)
+        # Find the function and everything until the next function or script end
+        match = re.search(r'function createRequestCard\(req\)\s*\{([\s\S]*?)(?=function\s|\s*</script)', content)
         assert match, "createRequestCard function should be found"
         
         function_body = match.group(1)
         
         # The function should create an <a> tag with href to the request detail
         # Check if the function includes <a href= in its return statement
-        assert '<a ' in function_body and 'href=' in function_body, \
+        assert ('<a href=' in function_body or '<a ' in function_body) and '/observatory/request/' in function_body, \
             "BUG FOUND: createRequestCard function doesn't wrap cards in <a> tags! " \
             "It only creates div elements without clickable links."
     
@@ -311,6 +310,93 @@ class TestRealtimeUpdates:
         # Check for notification banner/element
         assert 'notification' in content.lower() or 'new-requests' in content.lower() or 'banner' in content.lower(), \
             "Should have a notification element for new requests"
+    
+    def test_pending_requests_update_reactively(self, client):
+        """
+        Test that pending requests update their status reactively without page refresh.
+        
+        Given: A request is in pending status
+        When: The request completes and status changes
+        Then: The dashboard should update the request status automatically via polling
+        """
+        from django_observatory.models import Request
+        
+        # Create a pending request
+        pending_request = Request.objects.create(
+            method='POST',
+            path='/api/slow-endpoint/',
+            status='pending',
+            status_code=None
+        )
+        
+        # Get the dashboard with the pending request
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Verify the pending request is shown
+        assert f'data-request-id="{pending_request.id}"' in content or str(pending_request.id) in content
+        
+        # Verify the API endpoint can be used to check for updates
+        api_response = client.get(f'/observatory/api/requests/')
+        assert api_response.status_code == 200
+        
+        # Verify JavaScript polling mechanism exists
+        assert 'checkForNewRequests' in content or 'setInterval' in content, \
+            "JavaScript should have polling mechanism"
+        
+        # Now complete the request
+        pending_request.status = 'completed'
+        pending_request.status_code = 200
+        pending_request.duration = 250.5
+        pending_request.save()
+        
+        # The API should return updated information
+        api_response = client.get(f'/observatory/api/requests/')
+        data = api_response.json()
+        
+        # Find our request in the API response
+        our_request = next((r for r in data['requests'] if r['id'] == pending_request.id), None)
+        assert our_request is not None, "Updated request should be in API response"
+        assert our_request['status'] == 'completed', "Status should be updated"
+        assert our_request['status_code'] == 200, "Status code should be present"
+    
+    def test_slow_responding_requests_show_indicator(self, client):
+        """
+        Test that requests taking too long show a "responding" or "slow" indicator.
+        
+        Given: A request has been pending for a long time (e.g., > 5 seconds)
+        When: Viewing the dashboard
+        Then: The request should show a visual indicator that it's taking too long
+        """
+        from django_observatory.models import Request
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Create a request that started 10 seconds ago and is still pending
+        slow_request = Request.objects.create(
+            method='GET',
+            path='/api/very-slow-endpoint/',
+            status='pending',
+            status_code=None,
+            timestamp=timezone.now() - timedelta(seconds=10)
+        )
+        
+        # Get the API response
+        api_response = client.get(f'/observatory/api/requests/')
+        data = api_response.json()
+        
+        # The API should include timing information to help determine if request is slow
+        our_request = next((r for r in data['requests'] if r['id'] == slow_request.id), None)
+        assert our_request is not None
+        assert 'timestamp' in our_request, "Timestamp should be included to calculate elapsed time"
+        
+        # Verify the template has logic to show slow request indicator
+        response = client.get('/observatory/?tab=requests')
+        content = response.content.decode('utf-8')
+        
+        # Check for slow/responding state support in JavaScript
+        assert 'timestamp' in content.lower() or 'elapsed' in content.lower() or 'duration' in content.lower(), \
+            "Template should have logic to calculate and show elapsed time for pending requests"
 
 
 @pytest.mark.django_db

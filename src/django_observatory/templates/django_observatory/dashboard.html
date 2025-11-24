@@ -348,7 +348,7 @@
         let newRequestsCount = 0;
         let newRequestsData = [];
         
-        // Poll for new requests every 3 seconds
+        // Poll for new requests and update existing ones every 3 seconds
         function checkForNewRequests() {
             fetch(`/observatory/api/requests/?since_id=${lastRequestId}&limit=50`)
                 .then(response => response.json())
@@ -360,6 +360,72 @@
                     }
                 })
                 .catch(error => console.error('Error fetching new requests:', error));
+        }
+        
+        // Update existing request cards that are in pending state
+        function updateExistingRequests() {
+            // Get all request cards currently displayed
+            const requestCards = document.querySelectorAll('[data-request-id]');
+            const requestIds = Array.from(requestCards).map(card => card.dataset.requestId);
+            
+            if (requestIds.length === 0) return;
+            
+            // Fetch all displayed requests to check for status updates
+            fetch(`/observatory/api/requests/?limit=100`)
+                .then(response => response.json())
+                .then(data => {
+                    data.requests.forEach(updatedReq => {
+                        if (requestIds.includes(String(updatedReq.id))) {
+                            updateRequestCard(updatedReq);
+                        }
+                    });
+                })
+                .catch(error => console.error('Error updating requests:', error));
+        }
+        
+        // Update a single request card with new data
+        function updateRequestCard(req) {
+            const cardLink = document.querySelector(`a[href="/observatory/request/${req.id}/"]`);
+            if (!cardLink) return;
+            
+            const card = cardLink.querySelector('.request-card');
+            if (!card) return;
+            
+            // Check if status has changed from pending to completed
+            const currentlyPending = card.classList.contains('status-pending');
+            const isNowCompleted = req.status === 'completed';
+            
+            if (currentlyPending && isNowCompleted) {
+                // Update the entire card with completed status
+                const newCardHtml = createRequestCard(req);
+                cardLink.outerHTML = newCardHtml;
+                return;
+            }
+            
+            // For pending requests, check if they're taking too long
+            if (req.status === 'pending' && currentlyPending) {
+                const requestTime = new Date(req.timestamp);
+                const now = new Date();
+                const elapsedSeconds = (now - requestTime) / 1000;
+                
+                // If request is taking more than 5 seconds, show "responding slowly" indicator
+                if (elapsedSeconds > 5) {
+                    const statusElement = card.querySelector('.request-status');
+                    if (statusElement && !statusElement.querySelector('.slow-indicator')) {
+                        const slowIndicator = document.createElement('span');
+                        slowIndicator.className = 'slow-indicator';
+                        slowIndicator.style.cssText = 'color: #f39c12; font-size: 11px; margin-left: 8px;';
+                        slowIndicator.innerHTML = `⏳ ${Math.floor(elapsedSeconds)}s`;
+                        statusElement.appendChild(slowIndicator);
+                    } else if (statusElement) {
+                        // Update the elapsed time
+                        const slowIndicator = statusElement.querySelector('.slow-indicator');
+                        if (slowIndicator) {
+                            slowIndicator.innerHTML = `⏳ ${Math.floor(elapsedSeconds)}s`;
+                        }
+                    }
+                }
+            }
         }
         
         // Show notification banner
@@ -408,9 +474,16 @@
             const durationStr = req.duration ? `⚡ ${parseFloat(req.duration).toFixed(2)}ms` : '';
             const queryStr = req.query_params ? `🔍 ?${req.query_params}` : '';
             
-            const statusText = req.status === 'pending' ? 
-                '<span class="status-code status-pending"><span class="processing-indicator"></span>Processing</span>' :
-                `<span class="status-code status-${req.status_category}">${req.status_code}</span>`;
+            let statusText;
+            if (req.status === 'pending') {
+                // Calculate elapsed time for pending requests
+                const now = new Date();
+                const elapsedSeconds = (now - timestamp) / 1000;
+                const slowWarning = elapsedSeconds > 5 ? `<span class="slow-indicator" style="color: #f39c12; font-size: 11px; margin-left: 8px;">⏳ ${Math.floor(elapsedSeconds)}s</span>` : '';
+                statusText = `<span class="status-code status-pending"><span class="processing-indicator"></span>Processing</span>${slowWarning}`;
+            } else {
+                statusText = `<span class="status-code status-${req.status_category}">${req.status_code}</span>`;
+            }
             
             return `
                 <a href="/observatory/request/${req.id}/" class="request-card-link">
@@ -437,8 +510,11 @@
         // Click notification to load new requests
         document.getElementById('newRequestsNotification').addEventListener('click', loadNewRequests);
         
-        // Start polling
+        // Start polling for new requests
         setInterval(checkForNewRequests, 3000);
+        
+        // Start polling to update existing requests (especially pending ones)
+        setInterval(updateExistingRequests, 2000);
     </script>
     {% endif %}
 </body>
