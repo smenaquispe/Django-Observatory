@@ -189,6 +189,69 @@
             font-size: 14px;
             color: #2c3e50;
         }
+        .reprocess-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+        .reprocess-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-bottom: 16px;
+        }
+        .reprocess-button:hover {
+            background-color: #2980b9;
+        }
+        .reprocess-button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .payload-editor {
+            width: 100%;
+            min-height: 200px;
+            padding: 16px;
+            border: 2px solid #ecf0f1;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            resize: vertical;
+        }
+        .payload-editor:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .reprocess-status {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+        .reprocess-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .reprocess-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .reprocess-status.processing {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
     </style>
 </head>
 <body>
@@ -260,6 +323,14 @@
                 {% elif not request_headers %}
                 <div class="empty-state">No request data available</div>
                 {% endif %}
+                
+                <!-- Reprocess Section -->
+                <div class="reprocess-section">
+                    <h3 style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px;">🔄 Reprocess Request</h3>
+                    <button class="reprocess-button" onclick="reprocessRequest()">Resend Request</button>
+                    <textarea class="payload-editor" id="payloadEditor" placeholder="Edit payload before reprocessing...">{{ req.request_body|default:"" }}</textarea>
+                    <div class="reprocess-status" id="reprocessStatus" style="display: none;"></div>
+                </div>
             </div>
             
             <!-- Response Details -->
@@ -299,6 +370,102 @@
                 el.textContent = JSON.stringify(parsed, null, 2);
             } catch (e) {
                 // Not JSON or already formatted, keep as is
+            }
+        });
+        
+        // Reprocess request functionality
+        let pollingInterval = null;
+        
+        async function reprocessRequest() {
+            const button = document.querySelector('.reprocess-button');
+            const editor = document.getElementById('payloadEditor');
+            const status = document.getElementById('reprocessStatus');
+            const requestId = {{ req.id }};
+            
+            // Disable button
+            button.disabled = true;
+            button.textContent = '⏳ Redirecting...';
+            
+            try {
+                const response = await fetch(`/observatory/api/reprocess/${requestId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        request_body: editor.value
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.request_id) {
+                    // Start polling for the new request status
+                    startPolling(data.request_id);
+                } else {
+                    showStatus('error', data.error || 'Failed to reprocess request');
+                    button.disabled = false;
+                    button.textContent = 'Resend Request';
+                }
+            } catch (error) {
+                showStatus('error', `Error: ${error.message}`);
+                button.disabled = false;
+                button.textContent = 'Resend Request';
+            }
+        }
+        
+        function showStatus(type, message) {
+            const status = document.getElementById('reprocessStatus');
+            status.className = `reprocess-status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+        
+        function startPolling(newRequestId) {
+            // Clear any existing polling
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            // Poll every 500ms to check if the request has completed
+            pollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/observatory/api/requests/?request_id=${newRequestId}`);
+                    const data = await response.json();
+                    
+                    if (data.requests && data.requests.length > 0) {
+                        const request = data.requests[0];
+                        
+                        // Check if request has completed (has status_code)
+                        if (request.status_code) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                            
+                            // Redirect to the new request detail page
+                            window.location.href = `/observatory/request/${newRequestId}/`;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 500);
+            
+            // Stop polling after 30 seconds
+            setTimeout(() => {
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    const button = document.querySelector('.reprocess-button');
+                    button.disabled = false;
+                    button.textContent = 'Resend Request';
+                }
+            }, 30000);
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
             }
         });
     </script>

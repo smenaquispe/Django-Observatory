@@ -8,4 +8,5 @@ urlpatterns = [
     path('', views.dashboard_view, name='dashboard'),
     path('request/<int:request_id>/', views.request_detail_view, name='request_detail'),
     path('api/requests/', views.api_requests_list, name='api_requests'),
+    path('api/reprocess/<int:request_id>/', views.api_reprocess_request, name='api_reprocess'),
 ]

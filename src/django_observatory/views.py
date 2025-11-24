@@ -1,8 +1,11 @@
 """Views for Django Observatory dashboard"""
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.test import Client as TestClient
 from .models import Request
+import json
 import json
 
 
@@ -119,3 +122,74 @@ def api_requests_list(request):
     }
     
     return JsonResponse(data)
+
+
+@csrf_exempt
+@require_POST
+def api_reprocess_request(request, request_id):
+    """
+    Reprocess a captured request with optionally modified payload.
+    """
+    try:
+        # Get the original request
+        original_request = Request.objects.get(id=request_id)
+        
+        # Parse the incoming JSON data
+        data = json.loads(request.body.decode('utf-8'))
+        modified_body = data.get('request_body', original_request.request_body)
+        
+        # Create a test client to replay the request
+        client = TestClient()
+        
+        # Prepare the request parameters
+        path = original_request.path
+        method = original_request.method.lower()
+        
+        # Parse headers from the original request
+        headers = {}
+        if original_request.request_headers:
+            try:
+                headers = json.loads(original_request.request_headers)
+            except (json.JSONDecodeError, TypeError):
+                headers = {}
+        
+        # Prepare kwargs for the test client request
+        kwargs = {}
+        if modified_body:
+            kwargs['data'] = modified_body
+            kwargs['content_type'] = headers.get('Content-Type', 'application/json')
+        
+        # Make the request using the test client
+        if method == 'get':
+            response = client.get(path, **kwargs)
+        elif method == 'post':
+            response = client.post(path, **kwargs)
+        elif method == 'put':
+            response = client.put(path, **kwargs)
+        elif method == 'patch':
+            response = client.patch(path, **kwargs)
+        elif method == 'delete':
+            response = client.delete(path, **kwargs)
+        else:
+            return JsonResponse({'error': f'Unsupported method: {method}'}, status=400)
+        
+        # Find the newly created request (most recent one with same path and method)
+        new_request = Request.objects.filter(
+            path=path,
+            method=original_request.method
+        ).order_by('-timestamp').first()
+        
+        if new_request and new_request.id != request_id:
+            return JsonResponse({
+                'request_id': new_request.id,
+                'status': 'processing'
+            })
+        else:
+            return JsonResponse({'error': 'Failed to create new request'}, status=500)
+            
+    except Request.DoesNotExist:
+        return JsonResponse({'error': 'Request not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
